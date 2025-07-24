@@ -11,7 +11,15 @@ SessionLocal = sessionmaker(bind=engine)
 
 # CRUD Logic
 
-def create_sample(parent_id: int, json_data: dict, score: float, title: str, description: str, pmpt: str) -> Sample:
+def create_sample(
+    parent_id: int,
+    json_data: dict,
+    score: float,
+    title: str,
+    description: str,
+    pmpt: str,
+    created_by: str
+) -> Sample:
     db = SessionLocal()
     try:
         item = Sample(
@@ -20,9 +28,12 @@ def create_sample(parent_id: int, json_data: dict, score: float, title: str, des
             score=score,
             title=title,
             description=description,
-            created_at=datetime.utcnow(),
             pmpt=pmpt,
-            pmpt_id=1
+            pmpt_id=1,
+            created_ts=datetime.utcnow(),
+            created_by=created_by,
+            modified_ts=datetime.utcnow(),
+            modified_by=created_by
         )
         db.add(item)
         db.commit()
@@ -32,24 +43,36 @@ def create_sample(parent_id: int, json_data: dict, score: float, title: str, des
         db.close()
 
 
-def update_sample(sample_id: int, title: str = None, description: str = None, pmpt: str = None) -> Sample:
+def update_sample(
+    sample_id: int,
+    title: str = None,
+    description: str = None,
+    pmpt: str = None,
+    modified_by: str = None
+) -> Sample:
     db = SessionLocal()
     try:
         item = db.query(Sample).filter(Sample.id == sample_id).first()
         if not item:
             raise Exception("Sample not found")
         
-        if title: item.title = title
-        if description: item.description = description
+        if title:
+            item.title = title
+        if description:
+            item.description = description
         if pmpt and item.pmpt != pmpt:
             item.pmpt = pmpt
             item.pmpt_id = (item.pmpt_id or 0) + 1
+
+        item.modified_ts = datetime.utcnow()
+        item.modified_by = modified_by or item.modified_by
 
         db.commit()
         db.refresh(item)
         return item
     finally:
         db.close()
+
 
 
 def delete_sample(sample_id: int) -> str:

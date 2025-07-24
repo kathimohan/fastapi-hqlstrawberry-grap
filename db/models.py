@@ -11,6 +11,7 @@ class Parent(Base):
     __tablename__ = "parent"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    email_id = Column(String)  # 👈 NEW FIELD
 
 
 class Sample(Base):
@@ -23,7 +24,12 @@ class Sample(Base):
     score = Column(Float)
     title = Column(String(255))
     description = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+
+    created_ts = Column(DateTime(timezone=False), default=datetime.utcnow)
+    created_by = Column(String)
+
+    modified_ts = Column(DateTime(timezone=False), default=datetime.utcnow, onupdate=datetime.utcnow)
+    modified_by = Column(String)
 
     pmpt = Column(String, nullable=True)
     pmpt_id = Column(Integer, default=1)
