@@ -1,0 +1,95 @@
+from sqlalchemy.orm import Session
+from sqlalchemy import inspect, delete as sa_delete
+from sqlalchemy.exc import NoResultFound
+import json
+
+class SQLAlchemyCRUD:
+    def __init__(self, model):
+        self.model = model
+
+    def _get_columns(self):
+        return {col.name for col in inspect(self.model).columns}
+
+    def create(self, session: Session, data: dict):
+        columns = self._get_columns()
+        model_data = {k: data.get(k, None) for k in columns}
+        instance = self.model(**model_data)
+        session.add(instance)
+        session.commit()
+        session.refresh(instance)
+        return instance
+
+    def update(self, session: Session, pk_value, data: dict):
+        instance = session.get(self.model, pk_value)
+        if not instance:
+            raise NoResultFound(f"No record found with primary key {pk_value}")
+        
+        columns = self._get_columns()
+        for col in columns:
+            setattr(instance, col, data.get(col, None))  # Full overwrite
+        session.commit()
+        session.refresh(instance)
+        return instance
+
+    def partial_update(self, session: Session, pk_value, data: dict):
+        instance = session.get(self.model, pk_value)
+        if not instance:
+            raise NoResultFound(f"No record found with primary key {pk_value}")
+        
+        for key, value in data.items():
+            if hasattr(instance, key):
+                setattr(instance, key, value)
+        session.commit()
+        session.refresh(instance)
+        return instance
+
+    def delete(self, session: Session, pk_value):
+        instance = session.get(self.model, pk_value)
+        if not instance:
+            raise NoResultFound(f"No record found with primary key {pk_value}")
+        session.delete(instance)
+        session.commit()
+        return True
+
+    def filter_delete(self, session: Session, filter_col: str, filter_val):
+        if not hasattr(self.model, filter_col):
+            raise ValueError(f"{filter_col} is not a valid column")
+        
+        stmt = sa_delete(self.model).where(getattr(self.model, filter_col) == filter_val)
+        result = session.execute(stmt)
+        session.commit()
+        return result.rowcount  # Number of deleted rows
+
+
+# usage :
+    
+crud = SQLAlchemyCRUD(Product)
+
+# Create
+product_data = {
+    'name': 'Mouse',
+    'price': 29.99,
+    'description': 'Wireless mouse',
+    'metadata': {'color': 'black'},
+    'category_id': 1
+}
+product = crud.create(session, product_data)
+
+# Update (full overwrite)
+updated_data = {
+    'name': 'Gaming Mouse',
+    'price': 59.99,
+    'description': 'RGB mouse',
+    'metadata': {'color': 'black'},
+    'category_id': 1
+}
+crud.update(session, pk_value=product.id, data=updated_data)
+
+# Partial Update
+crud.partial_update(session, pk_value=product.id, data={'price': 49.99})
+
+# Delete by primary key
+crud.delete(session, pk_value=product.id)
+
+# Filter delete
+crud.filter_delete(session, filter_col='category_id', filter_val=1)
