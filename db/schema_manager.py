@@ -51,6 +51,31 @@ class DBSchemaManager:
             print(f"Renamed column '{old_name}' to '{new_name}' in table '{table_name}'.")
         except ProgrammingError as e:
             print(f"Failed to rename column: {e}")
+    
+    def update_table(self, model_class, rename_map: dict = None):
+        table_name = model_class.__tablename__
+        rename_map = rename_map or {}
+
+        # Get current columns from DB
+        existing_cols = {col['name']: col for col in self.inspector.get_columns(table_name)}
+        model_cols = {col.name: col for col in model_class.__table__.columns}
+
+        # 1. Rename columns
+        for old_name, new_name in rename_map.items():
+            if old_name in existing_cols and new_name not in existing_cols:
+                self.rename_column(table_name, old_name, new_name)
+                existing_cols[new_name] = existing_cols.pop(old_name)
+
+        # 2. Add missing columns
+        for name, col in model_cols.items():
+            if name not in existing_cols:
+                self.add_column(table_name, col)
+
+        # 3. Drop extra columns
+        model_col_names = set(model_cols.keys())
+        existing_col_names = set(existing_cols.keys())
+        for extra_col in existing_col_names - model_col_names:
+            self.drop_column(table_name, extra_col)
 
 
 ## usage
@@ -83,3 +108,22 @@ manager.rename_column("users", "name", "full_name", String)
 
 # Drop all tables
 manager.drop_all_tables()
+
+
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
+
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True)
+    full_name = Column(String)
+    is_active = Column(Boolean, default=True)
+
+engine = create_engine("postgresql://username:password@localhost/dbname")
+manager = DBSchemaManager(engine)
+
+# Rename column "name" ➜ "full_name", and add "is_active"
+rename_map = {
+    "name": "full_name"
+}
+
+manager.update_table(User, rename_map=rename_map)
