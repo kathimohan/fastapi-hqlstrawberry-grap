@@ -1,3 +1,5 @@
+use sqlalchemy ; create a class which is having create, update, partial_update, delete, filter_delete methods ; it expects table name and dict ; the dict should have key as column name and value as data to be populated ; the value might forwighn key, text, jsondb, str, int, float ; update is for all cols update; if not provided any column then store None ; for partial_update if any column not provided then keep previus value as it is ; delete expects table name and primary key value and filter_delete expects tablename, primary_key and value to be deleted and it should filter all and delete all those
+
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, delete as sa_delete
 from sqlalchemy.exc import NoResultFound
