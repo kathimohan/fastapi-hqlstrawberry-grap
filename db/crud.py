@@ -3,6 +3,7 @@ use sqlalchemy ; create a class which is having create, update, partial_update, 
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, delete as sa_delete
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.inspection import inspect
 import json
 
 class SQLAlchemyCRUD:
@@ -20,7 +21,18 @@ class SQLAlchemyCRUD:
         session.commit()
         session.refresh(instance)
         return instance
-
+    
+    def get_instance_data(instance, fields: list[str] = None):
+        # Get all column attributes from the instance
+        column_attrs = inspect(instance).mapper.column_attrs
+        # Get all data into a dict
+        all_data = {c.key: getattr(instance, c.key) for c in column_attrs}
+        # If specific fields are requested, filter and return them
+        if fields:
+            return {k: all_data[k] for k in fields if k in all_data}
+        # Otherwise return all fields
+        return all_data
+    
     def update(self, session: Session, pk_value, data: dict):
         instance = session.get(self.model, pk_value)
         if not instance:
