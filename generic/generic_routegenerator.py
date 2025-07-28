@@ -1,3 +1,9 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import NoResultFound
+from typing import Type, List, Optional, Any
+from your_app.database import get_session  # Assumes session dependency
+
 def generate_crud_routes(
     model: Type,
     router_tag: str,
