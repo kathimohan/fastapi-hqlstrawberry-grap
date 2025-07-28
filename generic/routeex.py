@@ -6,19 +6,19 @@ create 5 fast apis -- create , update, partial_update, delete and filter_delete 
 
 app = FastAPI()
 
-# Custom path prefix: /client/...
+# Default: all APIs, model name as prefix
 app.include_router(generate_crud_routes(
     model=Customer,
-    router_tag="CustomerOps",
-    route_prefix="client",  # 👈 Optional custom prefix
-    return_fields_on_create=["id", "email"],
-    partial_update_fields=["email"]
+    router_tag="Customer",
 ))
 
-# Default path: /customer/...
+# Custom route prefix and only selected APIs
 app.include_router(generate_crud_routes(
-    model=Customer,
-    router_tag="CustomerOps",
-    return_fields_on_create=["id", "email"],
-    partial_update_fields=["email"]
+    model=MyModel,
+    router_tag="MyModelOps",
+    route_prefix="mymodel-api",
+    return_fields_on_create=["id", "status", "version_id"],
+    partial_update_fields=["status"],
+    expose_apis=["create", "partial_update"]  # Only these will show up
+    
 ))
