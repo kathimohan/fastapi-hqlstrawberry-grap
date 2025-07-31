@@ -73,6 +73,67 @@ class SQLAlchemyCRUD:
         result = session.execute(stmt)
         session.commit()
         return result.rowcount  # Number of deleted rows
+    
+    def search(
+        self,
+        session: Session,
+        search_conditions: Optional[Dict[str, List[Dict[str, str]]]] = None,
+        order_by: Optional[List[str]] = None,
+        fields: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = 0
+    ) -> Dict[str, Any]:
+        query = session.query(self.model)
+
+        # Build filter conditions
+        if search_conditions:
+            for column, conditions in search_conditions.items():
+                if not hasattr(self.model, column):
+                    continue
+                col_attr = getattr(self.model, column)
+                sub_filters = []
+                for condition in conditions:
+                    search_type = condition.get("type")
+                    term = condition.get("searchterm")
+                    if search_type == "exact":
+                        sub_filters.append(col_attr == term)
+                    elif search_type == "contains":
+                        sub_filters.append(col_attr.ilike(f"%{term}%"))
+                if sub_filters:
+                    query = query.filter(*sub_filters)
+
+        total_rows_count = query.count()
+
+        # Ordering
+        if order_by:
+            for col_name in order_by:
+                if col_name.startswith("-"):
+                    col_name_clean = col_name[1:]
+                    if hasattr(self.model, col_name_clean):
+                        query = query.order_by(desc(getattr(self.model, col_name_clean)))
+                else:
+                    if hasattr(self.model, col_name):
+                        query = query.order_by(asc(getattr(self.model, col_name)))
+
+        # Pagination
+        if offset is None:
+            offset = 0
+        if limit is not None:
+            limit = min(limit, total_rows_count)
+            query = query.offset(offset).limit(limit)
+        else:
+            query = query.offset(offset)
+
+        # Fetch and serialize results
+        results = query.all()
+        data = [self.get_instance_data(instance, fields) for instance in results]
+
+        return {
+            "results": data,
+            "total_rows_count": total_rows_count,
+            "limit": limit,
+            "offset": offset
+        }
 
 
 # usage :
@@ -107,3 +168,25 @@ crud.delete(session, pk_value=product.id)
 
 # Filter delete
 crud.filter_delete(session, filter_col='category_id', filter_val=1)
+
+
+
+crud = SQLAlchemyCRUD(Product)
+
+search_conditions = {
+    "name": [{"type": "contains", "searchterm": "mouse"}],
+    "price": [{"type": "exact", "searchterm": 29.99}]
+}
+order_by = ["-price", "name"]  # Descending price, then name
+fields = ["id", "name", "price"]
+limit = 10
+offset = 0
+
+results = crud.search(
+    session,
+    search_conditions=search_conditions,
+    order_by=order_by,
+    fields=fields,
+    limit=limit,
+    offset=offset
+)
