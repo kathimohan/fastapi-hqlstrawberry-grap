@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import inspect, delete as sa_delete
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.inspection import inspect
-import json
+from typing import Optional, List
 
 class SQLAlchemyCRUD:
     def __init__(self, model):
@@ -13,16 +13,8 @@ class SQLAlchemyCRUD:
     def _get_columns(self):
         return {col.name for col in inspect(self.model).columns}
 
-    def create(self, session: Session, data: dict):
-        columns = self._get_columns()
-        model_data = {k: data.get(k, None) for k in columns}
-        instance = self.model(**model_data)
-        session.add(instance)
-        session.commit()
-        session.refresh(instance)
-        return instance
-    
-    def get_instance_data(instance, fields: list[str] = None):
+    @staticmethod
+    def get_instance_data(instance, fields: Optional[List[str]] = None):
         # Get all column attributes from the instance
         column_attrs = inspect(instance).mapper.column_attrs
         # Get all data into a dict
@@ -30,10 +22,18 @@ class SQLAlchemyCRUD:
         # If specific fields are requested, filter and return them
         if fields:
             return {k: all_data[k] for k in fields if k in all_data}
-        # Otherwise return all fields
         return all_data
+
+    def create(self, session: Session, data: dict, fields: Optional[List[str]] = None):
+        columns = self._get_columns()
+        model_data = {k: data.get(k, None) for k in columns}
+        instance = self.model(**model_data)
+        session.add(instance)
+        session.commit()
+        session.refresh(instance)
+        return self.get_instance_data(instance, fields)
     
-    def update(self, session: Session, pk_value, data: dict):
+    def update(self, session: Session, pk_value, data: dict, fields: Optional[List[str]] = None):
         instance = session.get(self.model, pk_value)
         if not instance:
             raise NoResultFound(f"No record found with primary key {pk_value}")
@@ -43,9 +43,9 @@ class SQLAlchemyCRUD:
             setattr(instance, col, data.get(col, None))  # Full overwrite
         session.commit()
         session.refresh(instance)
-        return instance
+        return self.get_instance_data(instance, fields)
 
-    def partial_update(self, session: Session, pk_value, data: dict):
+    def partial_update(self, session: Session, pk_value, data: dict, fields: Optional[List[str]] = None):
         instance = session.get(self.model, pk_value)
         if not instance:
             raise NoResultFound(f"No record found with primary key {pk_value}")
@@ -55,7 +55,7 @@ class SQLAlchemyCRUD:
                 setattr(instance, key, value)
         session.commit()
         session.refresh(instance)
-        return instance
+        return self.get_instance_data(instance, fields)
 
     def delete(self, session: Session, pk_value):
         instance = session.get(self.model, pk_value)
