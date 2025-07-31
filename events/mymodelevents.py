@@ -24,4 +24,22 @@ def initialize_version_id(mapper, connection, target):
         target.version_id = 1  # or 0, your choice
 
 
+from sqlalchemy import event, select, func
+from sqlalchemy.orm import Session, object_session
+
+@event.listens_for(ABC, "before_insert")
+def set_version(mapper, connection, target):
+    # Get the session from target (this works if session is active)
+    session = object_session(target)
+
+    if not session:
+        raise RuntimeError("Session is not available for versioning")
+
+    # Get max version for same fp
+    max_version = session.query(func.max(ABC.version)).filter_by(fp=target.fp).scalar()
+
+    # Set version
+    target.version = (max_version or 0) + 1
+
+
 import listeners.my_model_events 

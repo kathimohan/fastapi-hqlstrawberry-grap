@@ -156,68 +156,7 @@ class SQLAlchemyCRUD:
                 "offset": offset
             }
 
-    def search(
-        self,
-        session: Session,
-        search_conditions: Optional[Dict[str, List[Dict[str, str]]]] = None,
-        order_by: Optional[List[str]] = None,
-        fields: Optional[List[str]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = 0
-    ) -> Dict[str, Any]:
-        query = session.query(self.model)
-        """
-        add search method ;  it expects 1. dict -- search column as key and its value is list of dicts having type -- exact or contains , searchterm -- "value to the searched"  2. order by -- list of columns, 3. list of columns to return. If not provided need to return all column, 4. limit -- no of max rows to return. If not provided return all. If limit > total then consider limit as max , 5. offset - from which row. If not provided give from start . Along with resultant columns, it should return total_rows_count, limit and offset
-        """
-        # Build filter conditions
-        if search_conditions:
-            for column, conditions in search_conditions.items():
-                if not hasattr(self.model, column):
-                    continue
-                col_attr = getattr(self.model, column)
-                sub_filters = []
-                for condition in conditions:
-                    search_type = condition.get("type")
-                    term = condition.get("searchterm")
-                    if search_type == "exact":
-                        sub_filters.append(col_attr == term)
-                    elif search_type == "contains":
-                        sub_filters.append(col_attr.ilike(f"%{term}%"))
-                if sub_filters:
-                    query = query.filter(*sub_filters)
-
-        total_rows_count = query.count()
-
-        # Ordering
-        if order_by:
-            for col_name in order_by:
-                if col_name.startswith("-"):
-                    col_name_clean = col_name[1:]
-                    if hasattr(self.model, col_name_clean):
-                        query = query.order_by(desc(getattr(self.model, col_name_clean)))
-                else:
-                    if hasattr(self.model, col_name):
-                        query = query.order_by(asc(getattr(self.model, col_name)))
-
-        # Pagination
-        if offset is None:
-            offset = 0
-        if limit is not None:
-            limit = min(limit, total_rows_count)
-            query = query.offset(offset).limit(limit)
-        else:
-            query = query.offset(offset)
-
-        # Fetch and serialize results
-        results = query.all()
-        data = [self.get_instance_data(instance, fields) for instance in results]
-
-        return {
-            "results": data,
-            "total_rows_count": total_rows_count,
-            "limit": limit,
-            "offset": offset
-        }
+    
 
 
 # usage :
