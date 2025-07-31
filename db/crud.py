@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import inspect, delete as sa_delete
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.inspection import inspect
+from sqlalchemy import or_, and_
 from typing import Optional, List
 
 class SQLAlchemyCRUD:
@@ -74,6 +75,87 @@ class SQLAlchemyCRUD:
         session.commit()
         return result.rowcount  # Number of deleted rows
     
+
+    def search(
+        self,
+        session: Session,
+        search_conditions: Optional[Dict[str, List[Dict[str, str]]]] = None,
+        order_by: Optional[List[str]] = None,
+        return_fields: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = 0
+        ) -> Dict[str, Any]:
+            query = session.query(self.model)
+            """
+            add search method ;  it expects 1. dict -- search column as key and its value is list of dicts having type -- exact or contains , searchterm -- "value to the searched"  2. order by -- list of columns, 3. list of columns to return. If not provided need to return all column, 4. limit -- no of max rows to return. If not provided return all. If limit > total then consider limit as max , 5. offset - from which row. If not provided give from start . Along with resultant columns, it should return total_rows_count, limit and offset
+            Example : search_conditions = {
+                "name": [
+                    {"type": "contains", "searchterm": "mou"},
+                    {"type": "exact", "searchterm": "rat"}
+                ],
+                "category": [
+                    {"type": "exact", "searchterm": "electronics"}
+                ]
+            }
+                order_by=["-price", "name"],
+                return_fields=["id", "name", "price"],
+                limit=5,
+                offset=0
+            """
+            # --- Build dynamic filter ---
+            if search_conditions:
+                and_filters = []
+                for column, filters in search_conditions.items():
+                    if not hasattr(self.model, column):
+                        continue
+                    col_attr = getattr(self.model, column)
+                    or_group = []
+                    for condition in filters:
+                        search_type = condition.get("type")
+                        term = condition.get("searchterm")
+                        if search_type == "exact":
+                            or_group.append(col_attr == term)
+                        elif search_type == "contains":
+                            or_group.append(col_attr.ilike(f"%{term}%"))
+                    if or_group:
+                        and_filters.append(or_(*or_group))
+                if and_filters:
+                    query = query.filter(and_(*and_filters))
+
+            # --- Total count before pagination ---
+            total_rows_count = query.count()
+
+            # --- Ordering ---
+            if order_by:
+                for col in order_by:
+                    if col.startswith("-"):
+                        col_name = col[1:]
+                        if hasattr(self.model, col_name):
+                            query = query.order_by(desc(getattr(self.model, col_name)))
+                    else:
+                        if hasattr(self.model, col):
+                            query = query.order_by(asc(getattr(self.model, col)))
+
+            # --- Pagination ---
+            if offset is None:
+                offset = 0
+            if limit is not None:
+                limit = min(limit, total_rows_count)
+                query = query.offset(offset).limit(limit)
+            else:
+                query = query.offset(offset)
+
+            # --- Fetch and format ---
+            results = query.all()
+            data = [self.get_instance_data(instance, return_fields) for instance in results]
+
+            return {
+                "results": data,
+                "total_rows_count": total_rows_count,
+                "limit": limit,
+                "offset": offset
+            }
+
     def search(
         self,
         session: Session,
