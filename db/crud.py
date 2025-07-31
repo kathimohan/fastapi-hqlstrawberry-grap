@@ -84,7 +84,9 @@ class SQLAlchemyCRUD:
         offset: Optional[int] = 0
     ) -> Dict[str, Any]:
         query = session.query(self.model)
-
+        """
+        add search method ;  it expects 1. dict -- search column as key and its value is list of dicts having type -- exact or contains , searchterm -- "value to the searched"  2. order by -- list of columns, 3. list of columns to return. If not provided need to return all column, 4. limit -- no of max rows to return. If not provided return all. If limit > total then consider limit as max , 5. offset - from which row. If not provided give from start . Along with resultant columns, it should return total_rows_count, limit and offset
+        """
         # Build filter conditions
         if search_conditions:
             for column, conditions in search_conditions.items():
