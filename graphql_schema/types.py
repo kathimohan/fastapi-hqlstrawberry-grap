@@ -41,3 +41,13 @@ class SearchResult:
     total_rows_count: int
     limit: Optional[int]
     offset: int
+
+
+# graphql_schema/types.py
+from models import Sample
+from utils.strawberry_generator import generate_strawberry_type_from_model
+
+SampleType = generate_strawberry_type_from_model(
+    Sample,
+    include_fields=["id", "name", "price", "category", "description", "metadata"]
+)
