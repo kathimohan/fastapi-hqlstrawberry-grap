@@ -1,0 +1,38 @@
+Ability to update existing tables without losing data (except for explicitly dropped columns).
+
+Implement DBSchemaManager to Dynamically Manage Database Schema Based on SQLAlchemy Models :
+
+Table Management:
+
+create_all_tables() – Create all tables defined in the SQLAlchemy metadata.
+
+create_table(model_class) – Create a specific table from a given SQLAlchemy model.
+
+drop_all_tables() – Drop all tables in the database.
+
+drop_table(table_name) – Drop a specific table by name.
+
+Column Management:
+
+add_column(table_name, column) – Add a new column to an existing table.
+
+drop_column(table_name, column_name) – Drop an existing column from a table.
+
+rename_column(table_name, old_name, new_name) – Rename a column in a table.
+
+Schema Synchronization:
+
+update_table(model_class, rename_map=None, apply_pk_change=False, apply_foreign_keys=False)
+Syncs the table schema in the DB to match the SQLAlchemy model:
+
+Renames columns based on a rename_map.
+
+Adds missing columns from the model.
+
+Drops extra columns not in the model.
+
+Attempts to change the column type if there is a mismatch.
+
+Detects and updates primary key changes .
+
+Adds missing foreign key constraints .
