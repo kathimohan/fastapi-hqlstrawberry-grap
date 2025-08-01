@@ -1,0 +1,17 @@
+{
+  "query": "mutation MyMutation($itemList: [String!]!, $itemStr: String!) { createItem(itemList: $itemList, itemStr: $itemStr) { itemList itemStr } }",
+  "variables": {
+    "itemList": ["a", "b"],
+    "itemStr": "lkg"
+  }
+}
+
+
+{
+  "query": "query MyQuery { items { itemId itemList itemStr } }"
+}
+
+
+| KEY     | VALUE                                                 |
+| ------- | ----------------------------------------------------- |
+| `query` | `query MyQuery { items { itemId itemList itemStr } }` |
