@@ -1,1 +1,32 @@
 This is my new text file.
+
+from sqlalchemy import inspect
+
+class TableManager:
+    def __init__(self, connection, schema=None):
+        self.connection = connection
+        self.schema = schema
+        self.inspector = inspect(connection)
+
+    def list_tables(self):
+        """Return a list of (schema, table_name) tuples."""
+        tables = []
+        for schema_name in self.inspector.get_schema_names():
+            for table_name in self.inspector.get_table_names(schema=schema_name):
+                tables.append((schema_name, table_name))
+        return tables
+
+    def get_columns(self, table_name, schema=None):
+        """Get column metadata for a table with its schema."""
+        schema = schema or self.schema
+        return {
+            col['name']: col
+            for col in self.inspector.get_columns(table_name, schema=schema)
+        }
+
+    def rename_table(self, old_table_name, new_table_name, schema=None):
+        """Rename table with correct schema."""
+        schema = schema or self.schema
+        full_table = f"{schema}.{old_table_name}" if schema else old_table_name
+        ddl = f'ALTER TABLE {full_table} RENAME TO {new_table_name}'
+        self.connection.execute(text(ddl))
