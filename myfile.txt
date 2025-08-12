@@ -1,32 +1,266 @@
-This is my new text file.
+from typing import Optional, List, Dict, Any
+from sqlalchemy import and_, or_, desc, asc, cast
+from sqlalchemy.types import Integer, Float, Date, DateTime, String, Boolean
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.inspection import inspect
+from datetime import datetime, date
 
-from sqlalchemy import inspect
+# Shared operation mapping
+op_funcs = {
+    "eq": lambda c, v: c == v,
+    "neq": lambda c, v: c != v,
+    "gt": lambda c, v: c > v,
+    "lt": lambda c, v: c < v,
+    "gte": lambda c, v: c >= v,
+    "lte": lambda c, v: c <= v,
+    "contains": lambda c, v: c.ilike(f"%{v}%"),
+    "startswith": lambda c, v: c.ilike(f"{v}%"),
+    "endswith": lambda c, v: c.ilike(f"%{v}"),
+    "exact": lambda c, v: c == v,
+    "iexact": lambda c, v: c.ilike(v)
+}
 
-class TableManager:
-    def __init__(self, connection, schema=None):
-        self.connection = connection
-        self.schema = schema
-        self.inspector = inspect(connection)
+class YourClass:
+    MAX_LIMIT = 500
+    DEFAULT_LIMIT = 500
 
-    def list_tables(self):
-        """Return a list of (schema, table_name) tuples."""
-        tables = []
-        for schema_name in self.inspector.get_schema_names():
-            for table_name in self.inspector.get_table_names(schema=schema_name):
-                tables.append((schema_name, table_name))
-        return tables
+    def __init__(self, model, session_factory):
+        self.model = model
+        self.session_factory = session_factory
 
-    def get_columns(self, table_name, schema=None):
-        """Get column metadata for a table with its schema."""
-        schema = schema or self.schema
-        return {
-            col['name']: col
-            for col in self.inspector.get_columns(table_name, schema=schema)
-        }
+    def build_filter(self, conditions: List[Any]):
+        """Recursively build SQLAlchemy filter expression."""
+        if not isinstance(conditions, list):
+            return None
 
-    def rename_table(self, old_table_name, new_table_name, schema=None):
-        """Rename table with correct schema."""
-        schema = schema or self.schema
-        full_table = f"{schema}.{old_table_name}" if schema else old_table_name
-        ddl = f'ALTER TABLE {full_table} RENAME TO {new_table_name}'
-        self.connection.execute(text(ddl))
+        filters = []
+        current_op = "or"  # default if not specified
+
+        i = 0
+        while i < len(conditions):
+            item = conditions[i]
+
+            if isinstance(item, str) and item.lower() in ("and", "or"):
+                current_op = item.lower()
+                i += 1
+                continue
+
+            if isinstance(item, dict) and len(item) == 1:
+                # Field condition block
+                field_name = list(item.keys())[0]
+                conds = item[field_name]
+                field_filters = []
+                field_op = "or"
+
+                j = 0
+                while j < len(conds):
+                    cond_item = conds[j]
+
+                    if isinstance(cond_item, str) and cond_item.lower() in ("and", "or"):
+                        field_op = cond_item.lower()
+                        j += 1
+                        continue
+
+                    if not hasattr(self.model, field_name):
+                        j += 1
+                        continue
+
+                    col_attr = getattr(self.model, field_name)
+
+                    # JSONB condition
+                    if isinstance(col_attr.type, JSONB) and ("jsonb-key" in cond_item or "jsonb-value" in cond_item):
+                        key_expr = None
+                        val_expr = None
+                        search_val = cond_item["searchterm"]
+
+                        if "jsonb-key" in cond_item:
+                            key_expr = col_attr.op("#>>")("{" + cond_item["jsonb-key"] + "}")
+                        elif "jsonb-value" in cond_item:
+                            val_expr = col_attr.op("#>>")("{" + cond_item["jsonb-value"] + "}")
+
+                        v_type = cond_item.get("value_type", "str").lower()
+                        search_val = self.cast_value(search_val, v_type)
+                        if search_val is None:
+                            j += 1
+                            continue
+
+                        expr = key_expr or val_expr
+                        op_func = op_funcs.get(cond_item["type"])
+                        if op_func:
+                            field_filters.append(op_func(expr, search_val))
+                    else:
+                        # Regular column condition
+                        search_val = cond_item["searchterm"]
+                        v_type = cond_item.get("value_type", "str").lower()
+                        search_val = self.cast_value(search_val, v_type, col_attr.type)
+                        if search_val is None:
+                            j += 1
+                            continue
+
+                        op_func = op_funcs.get(cond_item["type"])
+                        if op_func:
+                            field_filters.append(op_func(col_attr, search_val))
+
+                    j += 1
+
+                if field_filters:
+                    filters.append(and_(*field_filters) if field_op == "and" else or_(*field_filters))
+
+            elif isinstance(item, list):
+                # Nested group
+                nested_filter = self.build_filter(item)
+                if nested_filter is not None:
+                    filters.append(nested_filter)
+
+            i += 1
+
+        if not filters:
+            return None
+        return and_(*filters) if current_op == "and" else or_(*filters)
+
+    def cast_value(self, value, v_type, col_type=None):
+        """Cast search value to correct type."""
+        try:
+            if v_type == "int" or isinstance(col_type, Integer):
+                return int(value)
+            elif v_type == "float" or isinstance(col_type, Float):
+                return float(value)
+            elif v_type == "date" or isinstance(col_type, Date):
+                return datetime.strptime(value, "%Y-%m-%d").date()
+            elif v_type == "datetime" or isinstance(col_type, DateTime):
+                return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            elif v_type == "bool" or isinstance(col_type, Boolean):
+                return str(value).lower() == "true"
+            else:
+                return value
+        except (ValueError, TypeError):
+            return None
+
+    def apply_order_by(self, query, order_by: Optional[List[str]]):
+        """Apply ordering."""
+        if order_by:
+            for field in order_by:
+                if field.startswith("-"):
+                    dir_func = desc
+                    f = field[1:]
+                else:
+                    dir_func = asc
+                    f = field
+                if hasattr(self.model, f):
+                    query = query.order_by(dir_func(getattr(self.model, f)))
+        return query
+
+    def apply_limit_offset(self, query, limit: Optional[int], offset: Optional[int]):
+        """Apply pagination with max limit constraint."""
+        if limit is None:
+            limit = self.DEFAULT_LIMIT
+        elif limit > self.MAX_LIMIT:
+            limit = self.MAX_LIMIT
+        if limit:
+            query = query.limit(limit)
+        if offset:
+            query = query.offset(offset)
+        return query, limit, offset
+
+    def search(
+        self,
+        search_conditions: Optional[List[Any]] = None,
+        order_by: Optional[List[str]] = None,
+        return_fields: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = 0
+    ) -> Dict[str, Any]:
+
+        with self.session_factory() as db:
+            query = db.query(self.model)
+
+            # Filters
+            if search_conditions:
+                filter_expr = self.build_filter(search_conditions)
+                if filter_expr is not None:
+                    query = query.filter(filter_expr)
+
+            total_count = query.count()
+
+            # Return fields
+            mapper = inspect(self.model)
+            all_fields = [col.name for col in mapper.columns]
+            if not return_fields:
+                return_fields = all_fields
+            entities = [getattr(self.model, f).label(f) for f in return_fields if hasattr(self.model, f)]
+            if entities:
+                query = query.with_entities(*entities)
+
+            # Order by
+            query = self.apply_order_by(query, order_by)
+
+            # Pagination
+            query, applied_limit, applied_offset = self.apply_limit_offset(query, limit, offset)
+
+            rows = query.all()
+            results = [dict(r._mapping) for r in rows]
+
+            return {
+                "results": results,
+                "total_count": total_count,
+                "limit": applied_limit,
+                "offset": applied_offset
+            }
+
+
+search_conditions = [
+    # String (contains + exact)
+    {"name": [
+        {"type": "contains", "searchterm": "john"},
+        "or",
+        {"type": "exact", "searchterm": "John Doe"}
+    ]},
+
+    "and",
+
+    # Integer (greater than)
+    {"age": [
+        {"type": "gt", "searchterm": "30", "value_type": "int"}
+    ]},
+
+    "or",
+
+    # Float (less than or equal)
+    {"salary": [
+        {"type": "lte", "searchterm": "50000.50", "value_type": "float"}
+    ]},
+
+    "and",
+
+    # Date (greater than or equal)
+    {"join_date": [
+        {"type": "gte", "searchterm": "2023-01-01", "value_type": "date"}
+    ]},
+
+    "or",
+
+    # JSONB key check (contains)
+    {"metadata": [
+        {"type": "contains", "searchterm": "manager", "jsonb-key": "role"}
+    ]},
+
+    "and",
+
+    # JSONB value check (exact int)
+    {"metadata": [
+        {"type": "eq", "searchterm": "5", "value_type": "int", "jsonb-value": "employee_id"}
+    ]},
+
+    "or",
+
+    # Nested condition
+    [
+        {"department": [
+            {"type": "exact", "searchterm": "Sales"}
+        ]},
+        "and",
+        {"active": [
+            {"type": "eq", "searchterm": "true", "value_type": "bool"}
+        ]}
+    ]
+]
