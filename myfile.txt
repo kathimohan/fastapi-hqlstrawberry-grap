@@ -1,44 +1,40 @@
-from sqlalchemy import Column, Integer, String, Date, Numeric
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.schema import CreateTable, DropTable
+import strawberry
+from typing import List, Optional, Any
 
-Base = declarative_base()
+@strawberry.type
+class SearchResult:
+    results: List[strawberry.scalars.JSON]
+    total_count: int
+    limit: int
+    offset: int
+import strawberry
+from typing import List, Optional, Any
 
-# Example model
-class Employee(Base):
-    __tablename__ = "employees"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    department = Column(String(50))
-    hire_date = Column(Date)
-    salary = Column(Numeric(10, 2))
-
-
-class TableSQLGenerator:
-    def __init__(self, model):
-        self.model = model
-
-    def create_table_sql(self, dialect=None):
-        """Generate CREATE TABLE SQL"""
-        stmt = CreateTable(self.model.__table__)
-        if dialect:
-            return str(stmt.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))
-        return str(stmt.compile(compile_kwargs={"literal_binds": True}))
-
-    def drop_table_sql(self, dialect=None):
-        """Generate DROP TABLE SQL"""
-        stmt = DropTable(self.model.__table__)
-        if dialect:
-            return str(stmt.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))
-        return str(stmt.compile(compile_kwargs={"literal_binds": True}))
+@strawberry.type
+class SearchResult:
+    results: List[strawberry.scalars.JSON]
+    total_count: int
+    limit: int
+    offset: int
 
 
-# Example usage
-generator = TableSQLGenerator(Employee)
-
-print("CREATE TABLE SQL:")
-print(generator.create_table_sql())
-
-print("\nDROP TABLE SQL:")
-print(generator.drop_table_sql())
+@strawberry.type
+class Query:
+    @strawberry.field
+    def search_items(
+        self,
+        search_conditions: Optional[List[Any]] = None,
+        order_by: Optional[List[str]] = None,
+        return_fields: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = 0
+    ) -> SearchResult:
+        service = YourClass(MyModel, SessionLocal)  # model + session factory
+        result = service.search(
+            search_conditions=search_conditions,
+            order_by=order_by,
+            return_fields=return_fields,
+            limit=limit,
+            offset=offset
+        )
+        return SearchResult(**result)
