@@ -1,40 +1,18 @@
-import strawberry
-from typing import List, Optional, Any
 
-@strawberry.type
-class SearchResult:
-    results: List[strawberry.scalars.JSON]
-    total_count: int
-    limit: int
-    offset: int
-import strawberry
-from typing import List, Optional, Any
-
-@strawberry.type
-class SearchResult:
-    results: List[strawberry.scalars.JSON]
-    total_count: int
-    limit: int
-    offset: int
+assume op1 and (op2 or op3) like this
+search_conditions = {
+["f1":[{type':'contains','searchterm':'abc'}, "op":"or",{type':'exact','searchterm':'lkg'}], "op":"and",[ ["f2":[{type':'contains','searchterm':'pqr'}],"op":"or", ["f3":[{type':'iexact','searchterm':'lkg'}]
 
 
-@strawberry.type
-class Query:
-    @strawberry.field
-    def search_items(
-        self,
-        search_conditions: Optional[List[Any]] = None,
-        order_by: Optional[List[str]] = None,
-        return_fields: Optional[List[str]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = 0
-    ) -> SearchResult:
-        service = YourClass(MyModel, SessionLocal)  # model + session factory
-        result = service.search(
-            search_conditions=search_conditions,
-            order_by=order_by,
-            return_fields=return_fields,
-            limit=limit,
-            offset=offset
-        )
-        return SearchResult(**result)
+Each column operation :
+
+type - 
+columns - 
+searchterm - 
+jsonb-key - 
+jsonb-value - 
+
+each list is an operation and b/w each operation one "op" should be there which decides whether 'and' or 'or' between these two, if op not specified then default is or ; list might having nested lists which specifies nested operations, each list having a dict on which key is columnname and value is a list of dicts which specifies operations to be performed on that column name ; each dict having type - which specifies operationtype, searchterm - which have data using which operation to perform, jsonb-key is option and is only for jsonb data and is key and jsonb-value is value. each dict can contain jsonb-key or value but not both. b/w each dict have "op" which decides and or or , if not specified take as or
+
+Ex - search_conditions = {
+["f1":[{type':'contains','searchterm':'abc'}, "op":"or",{type':'exact','searchterm':'lkg'}], "op":"and",[ ["f2":[{type':'contains','searchterm':'pqr'}],"op":"or", ["f3":[{type':'iexact','searchterm':'lkg'}]
