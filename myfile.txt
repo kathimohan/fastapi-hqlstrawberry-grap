@@ -15,4 +15,151 @@ jsonb-value -
 each list is an operation and b/w each operation one "op" should be there which decides whether 'and' or 'or' between these two, if op not specified then default is or ; list might having nested lists which specifies nested operations, each list having a dict on which key is columnname and value is a list of dicts which specifies operations to be performed on that column name ; each dict having type - which specifies operationtype, searchterm - which have data using which operation to perform, jsonb-key is option and is only for jsonb data and is key and jsonb-value is value. each dict can contain jsonb-key or value but not both. b/w each dict have "op" which decides and or or , if not specified take as or
 
 Ex - search_conditions = {
-["f1":[{type':'contains','searchterm':'abc'}, "op":"or",{type':'exact','searchterm':'lkg'}], "op":"and",[ ["f2":[{type':'contains','searchterm':'pqr'}],"op":"or", ["f3":[{type':'iexact','searchterm':'lkg'}]
+["f1":[{type':'contains','searchterm':'abc'}, "op":"or",{type':'exact','searchterm':'lkg'}], "op":"and",[ ["f2":[{type':'contains','searchterm':'pqr'}],"op":"or", ["f3":[{type':'iexact','searchterm':'lkg'}]columns
+
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship, declarative_base
+
+Base = declarative_base()
+
+class Parent(Base):
+    __tablename__ = "parents"
+    id = Column(Integer, primary_key=True)
+    parent_id = Column(String)
+    name = Column(String)
+
+    children = relationship("Child", back_populates="parent")
+
+class Child(Base):
+    __tablename__ = "children"
+    id = Column(Integer, primary_key=True)
+    parent_id = Column(Integer, ForeignKey("parents.id"))
+    name = Column(String)
+
+    parent = relationship("Parent", back_populates="children")
+
+from sqlalchemy import and_
+from sqlalchemy.sql.sqltypes import String, Text, Date, Integer, Float
+from sqlalchemy.dialects.postgresql import JSONB
+
+OPS = {
+    "eq": lambda c, v: c == v,
+    "neq": lambda c, v: c != v,
+    "gt": lambda c, v: c > v,
+    "lt": lambda c, v: c < v,
+    "gte": lambda c, v: c >= v,
+    "lte": lambda c, v: c <= v,
+    "contains": lambda c, v: c.ilike(f"%{v}%"),
+    "startswith": lambda c, v: c.ilike(f"{v}%"),
+    "endswith": lambda c, v: c.ilike(f"%{v}"),
+    "exact": lambda c, v: c == v,
+    "iexact": lambda c, v: c.ilike(v),
+}
+
+def build_filter(model_alias_map, search_conditions):
+    filters = []
+    for cond in search_conditions:
+        for field, ops_list in cond.items():
+            # Expect format: "parent.name" or "child.name"
+            model_name, col_name = field.split(".", 1)
+            model_alias = model_alias_map[model_name]
+            column = getattr(model_alias, col_name)
+
+            for op_dict in ops_list:
+                op_type = op_dict["type"]
+                value = op_dict["searchterm"]
+                if op_type in OPS:
+                    filters.append(OPS[op_type](column, value))
+    return and_(*filters)
+
+def apply_order_by(query, model_alias_map, order_by_list):
+    if not order_by_list:
+        return query
+    for order_item in order_by_list:
+        field = order_item["field"]   # e.g., "child.name"
+        direction = order_item.get("direction", "asc")
+        model_name, col_name = field.split(".", 1)
+        column = getattr(model_alias_map[model_name], col_name)
+        if direction.lower() == "desc":
+            query = query.order_by(column.desc())
+        else:
+            query = query.order_by(column.asc())
+    return query
+
+def apply_limit_offset(query, limit, offset, max_limit=500, default_limit=500):
+    applied_limit = min(limit or default_limit, max_limit)
+    applied_offset = offset or 0
+    return query.limit(applied_limit).offset(applied_offset), applied_limit, applied_offset
+
+
+from sqlalchemy.orm import aliased
+
+class SearchService:
+    def __init__(self, session_factory):
+        self.session_factory = session_factory
+
+    def search_parent_child(self, search_conditions, return_fields, order_by=None, limit=None, offset=None):
+        with self.session_factory() as db:
+            ParentAlias = aliased(Parent)
+            ChildAlias = aliased(Child)
+
+            model_alias_map = {
+                "parent": ParentAlias,
+                "child": ChildAlias
+            }
+
+            query = db.query(ParentAlias, ChildAlias).join(ChildAlias, ParentAlias.id == ChildAlias.parent_id)
+
+            # Apply filters
+            if search_conditions:
+                filter_expr = build_filter(model_alias_map, search_conditions)
+                query = query.filter(filter_expr)
+
+            # Select only required fields
+            entities = []
+            for field in return_fields:
+                model_name, col_name = field.split(".", 1)
+                model_alias = model_alias_map[model_name]
+                entities.append(getattr(model_alias, col_name).label(f"{model_name}_{col_name}"))
+
+            if entities:
+                query = db.query(*entities).join(ChildAlias, ParentAlias.id == ChildAlias.parent_id)
+
+            # Apply ordering
+            query = apply_order_by(query, model_alias_map, order_by)
+
+            # Pagination
+            query, applied_limit, applied_offset = apply_limit_offset(query, limit, offset)
+
+            rows = query.all()
+            results = [dict(r._mapping) for r in rows]
+
+            return {
+                "results": results,
+                "total_count": len(results),
+                "limit": applied_limit,
+                "offset": applied_offset
+            }
+
+
+search_conditions = [
+    {"parent.parent_id": [{"type": "exact", "searchterm": "vale"}]},
+    {"child.name": [{"type": "startswith", "searchterm": "ab"}]}
+]
+
+return_fields = ["parent.parent_id", "parent.name", "child.name"]
+
+order_by = [
+    {"field": "child.name", "direction": "asc"}
+]
+
+service = SearchService(session_factory)
+data = service.search_parent_child(
+    search_conditions=search_conditions,
+    return_fields=return_fields,
+    order_by=order_by,
+    limit=10,
+    offset=0
+)
+
+print(data)

@@ -1,0 +1,32 @@
+,,,,,
+int,float,str,text,jsonb,datetime
+1,1.45,abc,"apple,banana,cherry","{""name"":""Alice"",""age"":25,""active"":true}",2025-08-13 08:00:00
+2,2.78,def,"dog,cat,bird","{""city"":""New York"",""coords"":[40.7,-74.0],""verified"":false}",2025-08-13 09:15:00
+3,3.12,ghi,"red,blue,green","{""id"":101,""tags"":[""urgent"",""high""],""data"":{""x"":1}}",2025-08-13 10:30:00
+4,4.89,jkl,"book,pen,paper","{""title"":""Book1"",""price"":19.99,""stock"":10}",2025-08-13 11:45:00
+5,5.67,mno,"car,bike,truck","{""model"":""X1"",""year"":2023,""features"":[""ABS"",""GPS""]}",2025-08-13 13:00:00
+6,6.23,pqr,"sun,moon,star","{""planet"":""Mars"",""distance"":225.3,""explored"":true}",2025-08-13 14:15:00
+7,7.91,stu,"table,chair,desk","{""furniture"":""Table"",""material"":""Wood"",""cost"":150.5}",2025-08-13 15:30:00
+8,8.34,vwx,"tea,coffee,milk","{""drink"":""Coffee"",""type"":""Espresso"",""caffeine"":true}",2025-08-13 16:45:00
+9,9.56,yza,"pen,pencil,eraser","{""item"":""Pen"",""colors"":[""blue"",""black""],""count"":5}",2025-08-13 18:00:00
+10,10.78,abc,"rose,lily,tulip","{""flower"":""Rose"",""color"":""Red"",""bloom"":true}",2025-08-13 19:15:00
+11,11.32,def,"hat,cap,scarf","{""accessory"":""Hat"",""size"":""M"",""price"":29.99}",2025-08-13 20:30:00
+12,12.45,ghi,"apple,orange,grape","{""fruit"":""Apple"",""origin"":""USA"",""organic"":true}",2025-08-13 21:45:00
+13,13.67,jkl,"run,walk,jump","{""activity"":""Run"",""duration"":30,""calories"":200}",2025-08-14 08:00:00
+14,14.89,mno,"sea,ocean,river","{""water"":""Ocean"",""depth"":4000,""salty"":true}",2025-08-14 09:15:00
+15,15.12,pqr,"sky,cloud,rain","{""weather"":""Rain"",""temp"":20.5,""forecast"":""Cloudy""}",2025-08-14 10:30:00
+16,16.34,stu,"tree,leaf,branch","{""tree"":""Oak"",""height"":15,""age"":50}",2025-08-14 11:45:00
+17,17.56,vwx,"fish,shark,whale","{""animal"":""Shark"",""species"":""Great White"",""danger"":true}",2025-08-14 13:00:00
+18,18.78,yza,"day,night,dawn","{""time"":""Night"",""hours"":12,""dark"":true}",2025-08-14 14:15:00
+19,19.9,abc,"gold,silver,bronze","{""metal"":""Gold"",""purity"":0.999,""weight"":100}",2025-08-14 15:30:00
+20,20.11,def,"fire,water,air","{""element"":""Fire"",""temp"":1000,""state"":""Plasma""}",2025-08-14 16:45:00
+21,21.23,ghi,"cat,dog,rabbit","{""pet"":""Cat"",""name"":""Whiskers"",""age"":3}",2025-08-14 18:00:00
+22,22.45,jkl,"bread,cheese,butter","{""food"":""Bread"",""type"":""Sourdough"",""calories"":250}",2025-08-14 19:15:00
+23,23.67,mno,"shirt,pants,shoes","{""clothing"":""Shirt"",""size"":""L"",""color"":""Blue""}",2025-08-14 20:30:00
+24,24.89,pqr,"phone,laptop,tablet","{""device"":""Phone"",""brand"":""BrandX"",""model"":""Y1""}",2025-08-14 21:45:00
+25,25.12,stu,"ball,bat,racket","{""sport"":""Tennis"",""equipment"":""Racket"",""weight"":0.3}",2025-08-15 08:00:00
+26,26.34,vwx,"red,green,blue","{""color"":""Green"",""hex"":""#00FF00"",""rgb"":[0,255,0]}",2025-08-15 09:15:00
+27,27.56,yza,"pen,book,note","{""stationery"":""Pen"",""brand"":""BrandY"",""ink"":""Blue""}",2025-08-15 10:30:00
+28,28.78,abc,"cloud,sun,storm","{""weather"":""Storm"",""wind"":50,""rain"":true}",2025-08-15 11:45:00
+29,29.9,def,"car,train,plane","{""transport"":""Plane"",""speed"":900,""altitude"":35000}",2025-08-15 13:00:00
+30,30.01,ghi,"star,moon,planet","{""celestial"":""Star"",""type"":""Main Sequence"",""luminosity"":1.5}",2025-08-15 14:15:00
