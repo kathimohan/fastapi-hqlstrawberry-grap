@@ -163,3 +163,27 @@ data = service.search_parent_child(
 )
 
 print(data)
+
+
+
+from typing import List, Optional, Union
+from sqlalchemy.inspection import inspect
+
+def model_to_dict(
+    instance: Union[object, List[object]], 
+    fields: Optional[List[str]] = None
+) -> Union[dict, List[dict]]:
+    """
+    Convert a SQLAlchemy ORM instance or list of instances to a dict (or list of dicts).
+    Optionally, filter to specific fields.
+    """
+    def _to_dict(obj):
+        column_attrs = inspect(obj).mapper.column_attrs
+        all_data = {c.key: getattr(obj, c.key) for c in column_attrs}
+        if fields:
+            return {k: all_data[k] for k in fields if k in all_data}
+        return all_data
+
+    if isinstance(instance, list):
+        return [_to_dict(obj) for obj in instance]
+    return _to_dict(instance)
