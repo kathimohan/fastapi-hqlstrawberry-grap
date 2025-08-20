@@ -1,74 +1,21 @@
-from sqlalchemy import event
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+@event.listens_for(Item, "before_delete")
+def remember_latest_parent(mapper, connection, target):
+    session = Session.object_session(target)
+    if session and "latest" in _split_labels(target.labels):
+        session.info.setdefault("deleted_latest_parents", set()).add(target.parent_id)
 
-# ---------------- Helper functions ----------------
-
-def _split_labels(labels: str) -> list[str]:
-    return [l.strip() for l in (labels or "").split(",") if l.strip()]
-
-def _join_labels(labels: list[str]) -> str:
-    return ",".join(labels)
-
-
-# ---------------- Insert & Validation ----------------
-
-@event.listens_for(Session, "before_flush")
-def maintain_latest_on_insert(session, flush_context, instances):
-    """
-    - On insert → new row becomes 'latest', siblings lose it.
-    - Validate: user cannot manually set 'latest'.
-    """
-    for obj in session.new:
-        if isinstance(obj, Item):
-            # ❌ Validation: prevent user from providing 'latest'
-            if "latest" in _split_labels(obj.labels):
-                raise IntegrityError(
-                    None, None,
-                    Exception("The label 'latest' is reserved and cannot be set manually.")
-                )
-
-            # ✅ Remove 'latest' from siblings
-            siblings = session.query(Item).filter(
-                Item.parent_id == obj.parent_id,
-                Item.id != obj.id
-            ).all()
-            for sibling in siblings:
-                labels = _split_labels(sibling.labels)
-                if "latest" in labels:
-                    labels.remove("latest")
-                    sibling.labels = _join_labels(labels)
-
-            # ✅ Ensure new row gets 'latest'
-            labels = _split_labels(obj.labels)
-            labels.append("latest")
-            obj.labels = _join_labels(labels)
-
-
-# ---------------- Delete handling ----------------
-
-@event.listens_for(Item.__table__, "after_delete")
-def maintain_latest_on_delete(mapper, connection, deleted_row):
-    """
-    After delete → ensure max-version sibling gets 'latest'.
-    """
-    parent_id = deleted_row.get("parent_id")
-    if not parent_id:
-        return
-
-    session = Session(bind=connection)
-
-    latest_item = (
-        session.query(Item)
-        .filter(Item.parent_id == parent_id)
-        .order_by(Item.version.desc())
-        .first()
-    )
-
-    if latest_item:
-        labels = _split_labels(latest_item.labels)
-        if "latest" not in labels:
-            labels.append("latest")
-            latest_item.labels = _join_labels(labels)
-
-    session.flush()
+@event.listens_for(Session, "after_flush")
+def reassign_latest_after_delete(session, flush_context):
+    parent_ids = session.info.pop("deleted_latest_parents", set())
+    for pid in parent_ids:
+        sibling = (
+            session.query(Item)
+            .filter(Item.parent_id == pid)
+            .order_by(Item.version.desc())
+            .first()
+        )
+        if sibling:
+            labels = _split_labels(sibling.labels)
+            if "latest" not in labels:
+                labels.append("latest")
+                sibling.labels = _join_labels(labels)
