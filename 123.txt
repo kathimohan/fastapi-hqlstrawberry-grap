@@ -1,0 +1,70 @@
+You have 3 safe options:
+
+Option 1: Use before_flush event (best)
+
+This fires before the flush starts, so you can safely mutate objects and the flush will persist them:
+
+@event.listens_for(Session, "before_flush")
+def set_latest_on_insert(session, flush_context, instances):
+    for obj in session.new:  # all new objects being inserted
+        if isinstance(obj, Item):
+            # remove "latest" from siblings
+            siblings = session.query(Item).filter(
+                Item.parent_id == obj.parent_id,
+                Item.id != obj.id
+            ).all()
+            for sibling in siblings:
+                tag_list = _split_tags(sibling.tags)
+                if "latest" in tag_list:
+                    tag_list.remove("latest")
+                    sibling.tags = _join_tags(tag_list)
+
+            # add "latest" to this row
+            tag_list = _split_tags(obj.tags)
+            if "latest" not in tag_list:
+                tag_list.append("latest")
+                obj.tags = _join_tags(tag_list)
+
+
+➡️ This way you don’t need session.flush() at all — SQLAlchemy will flush after the event finishes.
+
+Option 2: Keep after_insert, but don’t use Session
+
+Mutate the target object only. This works if you’re okay with only ensuring the new row gets "latest":
+
+@event.listens_for(Item, "after_insert")
+def set_latest_on_insert(mapper, connection, target):
+    tag_list = _split_tags(target.tags)
+    if "latest" not in tag_list:
+        tag_list.append("latest")
+        target.tags = _join_tags(tag_list)
+
+
+…but this won’t clean siblings, because cleaning siblings needs a query.
+
+Option 3: Use after_flush instead
+
+This is triggered after flush, so you can safely query & update siblings. Example:
+
+@event.listens_for(Session, "after_flush")
+def enforce_single_latest(session, flush_context):
+    for obj in session.new:
+        if isinstance(obj, Item):
+            siblings = session.query(Item).filter(
+                Item.parent_id == obj.parent_id,
+                Item.id != obj.id
+            ).all()
+            for sibling in siblings:
+                tag_list = _split_tags(sibling.tags)
+                if "latest" in tag_list:
+                    tag_list.remove("latest")
+                    sibling.tags = _join_tags(tag_list)
+
+            tag_list = _split_tags(obj.tags)
+            if "latest" not in tag_list:
+                tag_list.append("latest")
+                obj.tags = _join_tags(tag_list)
+
+
+✅ Best choice: use before_flush or after_flush on the Session.
+That way, you can query, mutate, and let SQLAlchemy handle persistence in a single flush cycle.
