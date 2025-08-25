@@ -1,21 +1,28 @@
-@event.listens_for(Item, "before_delete")
-def remember_latest_parent(mapper, connection, target):
-    session = Session.object_session(target)
-    if session and "latest" in _split_labels(target.labels):
-        session.info.setdefault("deleted_latest_parents", set()).add(target.parent_id)
+import pandas as pd
 
-@event.listens_for(Session, "after_flush")
-def reassign_latest_after_delete(session, flush_context):
-    parent_ids = session.info.pop("deleted_latest_parents", set())
-    for pid in parent_ids:
-        sibling = (
-            session.query(Item)
-            .filter(Item.parent_id == pid)
-            .order_by(Item.version.desc())
-            .first()
-        )
-        if sibling:
-            labels = _split_labels(sibling.labels)
-            if "latest" not in labels:
-                labels.append("latest")
-                sibling.labels = _join_labels(labels)
+df = pd.DataFrame({
+    "id": [1, 2, 3],
+    "details": [
+        [{"a": 10, "b": 20}],   # list of dicts
+        None,                   # no dicts
+        [{"a": 30, "c": 40}]    # different keys
+    ]
+})
+
+def expand_list_of_dicts(row):
+    if isinstance(row, list) and all(isinstance(d, dict) for d in row):
+        # merge dicts inside list into one
+        merged = {}
+        for d in row:
+            merged.update(d)
+        return merged
+    return {}
+
+# Expand details
+expanded = df["details"].apply(expand_list_of_dicts)
+
+# Normalize into columns and join back
+df_expanded = pd.concat([df.drop(columns=["details"]),
+                         pd.json_normalize(expanded)], axis=1)
+
+print(df_expanded)
