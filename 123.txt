@@ -1,22 +1,26 @@
-from typing import Any, Dict, Tuple
-
-def build_params_with_msg(**kwargs: Any) -> Tuple[Dict[str, Any], str]:
-    """Build params dict excluding None values, and return a message string.
-
-    Args:
-        **kwargs: Arbitrary keyword arguments.
-
-    Returns:
-        Tuple[Dict[str, Any], str]:
-            - Dict containing only keys whose values are not None.
-            - String message listing received args (e.g. "the args received are a=5, b=6").
-
-    Notes:
-        - Mandatory args should be validated before calling this function.
+def build_conditions(model, arg_map):
     """
-    params = {k: v for k, v in kwargs.items() if v is not None}
-    msg = (
-        "the args received are " + ", ".join(f"{k}={v}" for k, v in params.items())
-        if params else "no args received"
-    )
-    return params, msg
+    model: SQLAlchemy model
+    arg_map: dict mapping {arg_value: model_column}
+    """
+    conditions = []
+    for value, column in arg_map.items():
+        if value is not None:
+            conditions.append(column == value)
+    return conditions
+
+def get_filtered_query(session, a=None, b=None, c=None, d=None):
+    arg_map = {
+        a: Model.col_a,
+        b: Model.col_b,
+        c: Model.col_c,
+        d: Model.col_d,
+    }
+
+    conditions = build_conditions(Model, arg_map)
+    query = session.query(Model)
+
+    if conditions:
+        query = query.filter(and_(*conditions))
+
+    return query.all()
