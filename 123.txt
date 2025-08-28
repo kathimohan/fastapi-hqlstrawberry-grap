@@ -1,28 +1,22 @@
-import pandas as pd
+from typing import Any, Dict, Tuple
 
-df = pd.DataFrame({
-    "id": [1, 2, 3],
-    "details": [
-        [{"a": 10, "b": 20}],   # list of dicts
-        None,                   # no dicts
-        [{"a": 30, "c": 40}]    # different keys
-    ]
-})
+def build_params_with_msg(**kwargs: Any) -> Tuple[Dict[str, Any], str]:
+    """Build params dict excluding None values, and return a message string.
 
-def expand_list_of_dicts(row):
-    if isinstance(row, list) and all(isinstance(d, dict) for d in row):
-        # merge dicts inside list into one
-        merged = {}
-        for d in row:
-            merged.update(d)
-        return merged
-    return {}
+    Args:
+        **kwargs: Arbitrary keyword arguments.
 
-# Expand details
-expanded = df["details"].apply(expand_list_of_dicts)
+    Returns:
+        Tuple[Dict[str, Any], str]:
+            - Dict containing only keys whose values are not None.
+            - String message listing received args (e.g. "the args received are a=5, b=6").
 
-# Normalize into columns and join back
-df_expanded = pd.concat([df.drop(columns=["details"]),
-                         pd.json_normalize(expanded)], axis=1)
-
-print(df_expanded)
+    Notes:
+        - Mandatory args should be validated before calling this function.
+    """
+    params = {k: v for k, v in kwargs.items() if v is not None}
+    msg = (
+        "the args received are " + ", ".join(f"{k}={v}" for k, v in params.items())
+        if params else "no args received"
+    )
+    return params, msg
