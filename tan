@@ -1,0 +1,34 @@
+def pytest_runtest_makereport(item, call):
+    if call.when == "call":
+        result = call
+        test_details = {}  # put your extra details here
+        data = getattr(item, "extra_test_data", [])
+
+        # 🔹 Default: no subtest value
+        subtest_value = None
+
+        # Case 1: Parametrized test
+        if hasattr(item, "callspec"):
+            subtest_value = item.callspec.params  # dict of {param_name: value}
+
+        # Case 2: Subtest (pytest-subtests plugin)
+        if hasattr(result, "subtest"):  
+            subtest_value = result.subtest  # dict like {'msg': ..., 'val': ...}
+
+        if data:
+            for entry in data:
+                if isinstance(entry, dict):
+                    entry.update(test_details)
+                    if subtest_value:
+                        entry["subtest_value"] = subtest_value
+                    all_test_results.append(entry)
+        else:
+            pytest_rst = {
+                "status_type": "pytest_default_outcome",
+                "status": result.outcome,
+                "details": result.longrepr.reprcrash if result.failed else None,
+            }
+            pytest_rst.update(test_details)
+            if subtest_value:
+                pytest_rst["subtest_value"] = subtest_value
+            all_test_results.append(pytest_rst)
